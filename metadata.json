@@ -1,0 +1,6 @@
+{
+  "name": "Cafetería Starbucks Style & Rewards",
+  "description": "Tienda en línea completa para cafetería con delivery y pickup, pagos en línea y efectivo, compras recurrentes, sistema de lealtad gamificado, panel admin, reportes y CMS.",
+  "requestFramePermissions": ["geolocation", "notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
