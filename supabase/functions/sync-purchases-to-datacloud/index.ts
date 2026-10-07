@@ -1,16 +1,19 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { create, getNumericDate } from "https://deno.land/x/djwt@v2.8/mod.ts";
+// Envía a Data Cloud las compras de la tabla `purchases` que aún no se han enviado.
+import { isAuthorized, isoDate, json, syncTable } from "../_shared/datacloud.ts";
 
-const CLIENT_ID = Deno.env.get("SALESFORCE_CLIENT_ID")!;
-const USERNAME = Deno.env.get("SALESFORCE_USERNAME")!;
-const PRIVATE_KEY = Deno.env.get("SALESFORCE_PRIVATE_KEY")!;
-const TENANT_ENDPOINT = Deno.env.get("DATACLOUD_TENANT_ENDPOINT")!;
-const CONNECTOR = Deno.env.get("DATACLOUD_CONNECTOR_NAME")!;
-const OBJECT_NAME = "Purchase";
+// Zona horaria de la tienda para calcular la franja horaria
+const STORE_TZ = Deno.env.get("STORE_TIMEZONE") ?? "America/El_Salvador";
 
 function getTimeSlot(date: Date): string {
-  const hour = date.getUTCHours() - 6;
-  const h = hour < 0 ? hour + 24 : hour;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: STORE_TZ,
+    hour: "numeric",
+    minute: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const hour = Number(parts.find((p) => p.type === "hour")!.value);
+  const minute = Number(parts.find((p) => p.type === "minute")!.value);
+  const h = hour + minute / 60;
 
   if (h >= 7 && h < 10.5) return "Morning";
   if (h >= 14 && h < 17.5) return "Afternoon";
@@ -18,106 +21,33 @@ function getTimeSlot(date: Date): string {
   return "Other";
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  if (!isAuthorized(req)) return json({ success: false, error: "No autorizado" }, 401);
+
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
-    const { data: purchases, error } = await supabase
-      .from("purchases")
-      .select("*")
-      .order("purchase_date", { ascending: true });
-
-    if (error) throw error;
-    if (!purchases?.length) {
-      return new Response(JSON.stringify({ message: "No hay datos" }), { status: 200 });
-    }
-
-    const records = purchases.map((p) => ({
-      purchaseId: p.purchase_id,
-      customerId: p.customer_id,
-      purchaseTime: new Date(p.purchase_date).toISOString(),
-      timeSlot: getTimeSlot(new Date(p.purchase_date)),
-      productId: p.product_id ?? p.product_name,
-      productName: p.product_name,
-      totalAmount: p.total_amount,
-      fulfillmentType: p.fulfillment_type,
-      isRewardRedemption: p.is_reward_redemption ?? false,
-      pointsRedeemed: p.points_redeemed ?? 0,
-    }));
-
-    const privateKey = await crypto.subtle.importKey(
-      "pkcs8",
-      await pemToArrayBuffer(PRIVATE_KEY),
-      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-      false,
-      ["sign"]
-    );
-
-    const jwt = await create(
-      { alg: "RS256", typ: "JWT" },
-      { iss: CLIENT_ID, sub: USERNAME, aud: "https://login.salesforce.com", exp: getNumericDate(300) },
-      privateKey
-    );
-
-    const sfRes = await fetch("https://login.salesforce.com/services/oauth2/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        assertion: jwt,
+    const result = await syncTable({
+      table: "purchases",
+      idColumn: "purchase_id",
+      orderColumn: "purchase_date",
+      objectName: Deno.env.get("DATACLOUD_PURCHASE_OBJECT") ?? "Purchase",
+      // Los nombres de la izquierda deben ser IGUALES a los del esquema .yaml
+      toRecord: (p) => ({
+        purchaseId: p.purchase_id,
+        customerId: p.customer_id,
+        purchaseTime: isoDate(p.purchase_date),
+        timeSlot: getTimeSlot(new Date(p.purchase_date)),
+        productId: p.product_id ?? p.product_name,
+        productName: p.product_name,
+        totalAmount: Number(p.total_amount ?? 0),
+        fulfillmentType: p.fulfillment_type,
+        isRewardRedemption: p.is_reward_redemption ?? false,
+        pointsRedeemed: p.points_redeemed ?? 0,
       }),
     });
-    if (!sfRes.ok) throw new Error(`SF token: ${await sfRes.text()}`);
-    const { access_token: sfToken } = await sfRes.json();
-
-    const dcRes = await fetch(`${TENANT_ENDPOINT}/services/a360/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "urn:salesforce:grant-type:external:cdp",
-        subject_token: sfToken,
-        subject_token_type: "urn:ietf:params:oauth:token-type:access_token",
-      }),
-    });
-    if (!dcRes.ok) throw new Error(`DC token: ${await dcRes.text()}`);
-    const { access_token: dcToken } = await dcRes.json();
-
-    const apexUrl = `https://orgfarm-55e9a75eda-dev-ed.develop.my.salesforce.com/services/apexrest/datacloud-proxy/${OBJECT_NAME}`;
-
-const ingest = await fetch(apexUrl, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${sfToken}`,
-    "Content-Type": "application/json",
-    "X-DataCloud-Token": dcToken,
-  },
-  body: JSON.stringify({ data: records }),
-});
-if (!ingest.ok) throw new Error(`Ingest: ${await ingest.text()}`);
-
-const result = await ingest.json();
-    if (!ingest.ok) throw new Error(`Ingest: ${await ingest.text()}`);
-
-    const result = await ingest.json();
-    return new Response(
-      JSON.stringify({ success: true, recordsSent: records.length, result }),
-      { headers: { "Content-Type": "application/json" } }
-    );
+    console.log("sync-purchases OK", result);
+    return json({ success: true, ...result });
   } catch (e) {
-    return new Response(JSON.stringify({ success: false, error: e.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    console.error("sync-purchases ERROR", e);
+    return json({ success: false, error: (e as Error).message }, 500);
   }
 });
-
-async function pemToArrayBuffer(pem: string): Promise<ArrayBuffer> {
-  const b64 = pem.replace(/-----[^-]+-----/g, "").replace(/\s/g, "");
-  const bin = atob(b64);
-  const buf = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-  return buf.buffer;
-}
