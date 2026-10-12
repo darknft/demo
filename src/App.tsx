@@ -3,8 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// CAMBIO 1: Añadi useEffect a las importaciones
-import React, { useEffect } from 'react';
+import React from 'react';
 import { StoreProvider, useStore } from './context/StoreContext';
 import { Navbar } from './components/Navbar';
 import { HeroBanner } from './components/HeroBanner';
@@ -18,39 +17,11 @@ import { FavoritesView } from './components/FavoritesView';
 import { AuthModal } from './components/AuthModal';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { NotificationToast } from './components/NotificationToast';
+import { ProjectDownloadModal } from './components/ProjectDownloadModal';
 import { Footer } from './components/Footer';
 
-// CAMBIO 2: Declara el SDK global para que TypeScript no marque error
-declare global {
-  interface Window {
-    SalesforceInteractions: any;
-  }
-}
-
 const MainLayout: React.FC = () => {
-  const { activeTab } = useStore();
-
-  // CAMBIO 3: Inicialización del SDK, justo aquí, antes del return
-  useEffect(() => {
-    // Verifique que el SDK se haya cargado desde el CDN en el index.html
-    if (window.SalesforceInteractions) {
-      
-      window.SalesforceInteractions.init({
-        cookieDomain: 'tienda.pamelamilian.com', 
-      })
-      .then(() => {
-        console.log('Data Cloud Web SDK inicializado correctamente.');
-        // Opcional: activa los logs para ver los eventos en la consola del navegador
-        // window.SalesforceInteractions.setLoggingLevel(4);
-      })
-      .catch((error: any) => {
-        console.error(' Error al inicializar el Data Cloud Web SDK:', error);
-      });
-
-    } else {
-      console.warn('El script del Data Cloud Web SDK no se ha cargado. Revisa tu index.html');
-    }
-  }, []); // El array vacío asegura que solo se ejecute una vez
+  const { activeTab, user } = useStore();
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F9F9F7] text-stone-900 font-sans selection:bg-[#006241] selection:text-white">
@@ -70,7 +41,7 @@ const MainLayout: React.FC = () => {
 
         {activeTab === 'favorites' && <FavoritesView />}
 
-        {activeTab === 'admin' && <AdminDashboard />}
+        {activeTab === 'admin' && user.role === 'admin' && <AdminDashboard />}
       </main>
 
       {/* Footer */}
@@ -83,6 +54,7 @@ const MainLayout: React.FC = () => {
       <OrderTrackerModal />
       <AuthModal />
       <NotificationToast />
+      {user.role === 'admin' && <ProjectDownloadModal />}
     </div>
   );
 };

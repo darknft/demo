@@ -3,7 +3,7 @@ import { Coffee, MapPin, Phone, Mail, Truck, Zap, Sparkles, Clock } from 'lucide
 import { useStore } from '../context/StoreContext';
 
 export const Footer: React.FC = () => {
-  const { cmsConfig, setActiveTab, setAdminTab } = useStore();
+  const { cmsConfig, setActiveTab, setAdminTab, user } = useStore();
 
   return (
     <footer className="bg-[#1E3932] text-white border-t border-emerald-950 mt-16 w-full">
@@ -182,7 +182,7 @@ export const Footer: React.FC = () => {
                   className="hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
                 >
                   <span>⭐</span>
-                  <span>Programa Starbucks Rewards</span>
+                  <span>Programa {cmsConfig.brandName} Rewards</span>
                 </button>
               </li>
               <li>
@@ -194,42 +194,61 @@ export const Footer: React.FC = () => {
                   <span>Tus Favoritos Guardados</span>
                 </button>
               </li>
-              <li>
-                <button
-                  onClick={() => {
-                    setActiveTab('admin');
-                    setAdminTab('supabase');
-                  }}
-                  className="hover:text-white transition-colors cursor-pointer flex items-center gap-1.5 font-semibold text-emerald-300"
-                >
-                  <span>🗄️</span>
-                  <span>Base de Datos Supabase (Script SQL)</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => {
-                    setActiveTab('admin');
-                    setAdminTab('pentesting');
-                  }}
-                  className="hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
-                >
-                  <span>🛡️</span>
-                  <span>Auditoría Pentesting & DevSecOps</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => {
-                    setActiveTab('admin');
-                    setAdminTab('cms');
-                  }}
-                  className="hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
-                >
-                  <span>🎨</span>
-                  <span>Panel CMS y Colores</span>
-                </button>
-              </li>
+              {user.role === 'admin' ? (
+                <>
+                  <li>
+                    <button
+                      onClick={() => {
+                        setActiveTab('admin');
+                        setAdminTab('supabase');
+                      }}
+                      className="hover:text-white transition-colors cursor-pointer flex items-center gap-1.5 font-semibold text-emerald-300"
+                    >
+                      <span>🗄️</span>
+                      <span>Base de Datos Supabase (Script SQL)</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => {
+                        setActiveTab('admin');
+                        setAdminTab('pentesting');
+                      }}
+                      className="hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>🛡️</span>
+                      <span>Auditoría Pentesting & DevSecOps</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => {
+                        setActiveTab('admin');
+                        setAdminTab('cms');
+                      }}
+                      className="hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>🎨</span>
+                      <span>Panel CMS y Colores</span>
+                    </button>
+                  </li>
+                </>
+              ) : (
+                <>
+                  <li className="flex items-center gap-1.5 text-stone-300">
+                    <span>🎁</span>
+                    <span>50★ Estrellas gratis al registrarte</span>
+                  </li>
+                  <li className="flex items-center gap-1.5 text-stone-300">
+                    <span>🛵</span>
+                    <span>Seguimiento de pedidos en tiempo real</span>
+                  </li>
+                  <li className="flex items-center gap-1.5 text-stone-300">
+                    <span>🔒</span>
+                    <span>Pago cifrado y entrega garantizada</span>
+                  </li>
+                </>
+              )}
             </ul>
           </div>
 
@@ -263,15 +282,21 @@ export const Footer: React.FC = () => {
         <div className="pt-8 border-t border-emerald-900/60 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-stone-400">
           <p>© {new Date().getFullYear()} {cmsConfig.brandName}. Todos los derechos reservados.</p>
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => {
-                setActiveTab('admin');
-                setAdminTab('docs');
-              }}
-              className="hover:text-white underline cursor-pointer"
-            >
-              Documentación de Despliegue
-            </button>
+            {user.role === 'admin' ? (
+              <button
+                onClick={() => {
+                  setActiveTab('admin');
+                  setAdminTab('docs');
+                }}
+                className="hover:text-white underline cursor-pointer"
+              >
+                Documentación de Despliegue
+              </button>
+            ) : (
+              <span className="text-stone-400">
+                Términos y Condiciones • Privacidad
+              </span>
+            )}
             <span>•</span>
             <span className="flex items-center gap-1">
               Desarrollado con React 19, NestJS/Node y Framer Motion

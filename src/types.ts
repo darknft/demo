@@ -137,11 +137,16 @@ export interface User {
   role: 'admin' | 'customer';
   phone?: string;
   address?: string;
+  city?: string;
+  birthDate?: string; // YYYY-MM-DD
+  age?: number;
+  gender?: 'femenino' | 'masculino' | 'no_binario' | 'otro' | 'prefiero_no_decir' | string;
   stars: number;
   lifetimeStars: number;
   tier: LoyaltyTier;
   favoriteProductIds: string[];
   badges: LoyaltyBadge[];
+  password?: string;
 }
 
 export interface AppNotification {

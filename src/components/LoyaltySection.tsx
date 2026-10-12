@@ -90,7 +90,14 @@ export const LoyaltySection: React.FC = () => {
         <div className="lg:col-span-7 space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">
             <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            <span>Programa Gamificado Starbucks Rewards</span>
+            <span>
+              Programa Gamificado{' '}
+              {cmsConfig.brandName && !cmsConfig.brandName.includes('Starbucks')
+                ? cmsConfig.brandName.includes('Rewards')
+                  ? cmsConfig.brandName
+                  : `${cmsConfig.brandName} Rewards`
+                : 'Bean & Co Rewards'}
+            </span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-extrabold font-display text-stone-900 leading-tight">
@@ -141,7 +148,9 @@ export const LoyaltySection: React.FC = () => {
             <div className="flex justify-between items-start relative z-10">
               <div>
                 <span className="text-[10px] uppercase font-extrabold tracking-widest text-amber-200 block">
-                  STARBUCKS REWARDS MEMBER
+                  {cmsConfig.brandName && !cmsConfig.brandName.includes('Starbucks')
+                    ? cmsConfig.brandName.replace(/Rewards/i, '').trim().toUpperCase() + ' REWARDS MEMBER'
+                    : 'BEAN & CO REWARDS MEMBER'}
                 </span>
                 <h3 className="text-xl font-bold font-display">{currentTierInfo.name}</h3>
               </div>
