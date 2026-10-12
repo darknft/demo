@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import {
   Database,
   CheckCircle2,
@@ -12,28 +13,46 @@ import {
   UploadCloud,
   DownloadCloud,
   Check,
-  Code
+  Code,
+  Download,
+  Rocket
 } from 'lucide-react';
 import {
   getSupabaseCredentials,
   saveSupabaseCredentials,
   getSupabaseClient,
+  sanitizeSupabaseUrl,
   SUPABASE_SCHEMA_SQL
 } from '../../lib/supabase';
 import { useStore } from '../../context/StoreContext';
+import { downloadProjectZip } from '../../utils/downloadProjectZip';
 
 export const SupabaseManagerTab: React.FC = () => {
-  const { products, setProducts, orders, setOrders, cmsConfig, setCmsConfig, addNotification } = useStore() as any;
+  const { products, setProducts, orders, setOrders, cmsConfig, setCmsConfig, addNotification, setIsDownloadModalOpen } = useStore() as any;
 
   const [creds, setCreds] = useState(getSupabaseCredentials());
   const [urlInput, setUrlInput] = useState(creds.url);
   const [anonKeyInput, setAnonKeyInput] = useState(creds.anonKey);
   const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    message: string;
+    details?: {
+      productsTable: { exists: boolean; count: number; error?: string };
+      ordersTable: { exists: boolean; count: number; error?: string };
+      cmsTable: { exists: boolean; count: number; error?: string };
+    };
+  } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
 
   useEffect(() => {
+    // If localStorage already had an invalid URL with /rest/v1/, clean it immediately
+    const rawLocalUrl = localStorage.getItem('sb_supabase_url') || '';
+    if (rawLocalUrl && (rawLocalUrl.includes('/rest') || rawLocalUrl.endsWith('/'))) {
+      const cleaned = sanitizeSupabaseUrl(rawLocalUrl);
+      localStorage.setItem('sb_supabase_url', cleaned);
+    }
     const current = getSupabaseCredentials();
     setCreds(current);
     setUrlInput(current.url);
@@ -41,7 +60,11 @@ export const SupabaseManagerTab: React.FC = () => {
   }, []);
 
   const handleSave = () => {
-    saveSupabaseCredentials(urlInput, anonKeyInput);
+    const cleanUrl = sanitizeSupabaseUrl(urlInput);
+    const cleanKey = (anonKeyInput || '').trim();
+    setUrlInput(cleanUrl);
+    setAnonKeyInput(cleanKey);
+    saveSupabaseCredentials(cleanUrl, cleanKey);
     const updated = getSupabaseCredentials();
     setCreds(updated);
     setTestResult(null);
@@ -49,39 +72,73 @@ export const SupabaseManagerTab: React.FC = () => {
   };
 
   const handleTestConnection = async () => {
+    const cleanUrl = sanitizeSupabaseUrl(urlInput);
+    const cleanKey = (anonKeyInput || '').trim();
+
+    setUrlInput(cleanUrl);
+    setAnonKeyInput(cleanKey);
+    saveSupabaseCredentials(cleanUrl, cleanKey);
+    setCreds(getSupabaseCredentials());
+
     setIsTesting(true);
     setTestResult(null);
+
+    if (!cleanUrl || !cleanKey) {
+      setTestResult({
+        success: false,
+        message: 'No se ha configurado la URL o el Anon Key de Supabase. Guarda tus credenciales primero.'
+      });
+      setIsTesting(false);
+      return;
+    }
+
     try {
-      const client = getSupabaseClient();
-      if (!client) {
+      // Use cleanUrl directly with a fresh client instance to avoid any stale cached URL
+      const client = createClient(cleanUrl, cleanKey, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      });
+
+      // 1. Check products table
+      const { data: prods, error: prodErr } = await client.from('products').select('id');
+      // 2. Check orders table
+      const { data: ords, error: ordErr } = await client.from('orders').select('id');
+      // 3. Check cms_config table
+      const { data: cms, error: cmsErr } = await client.from('cms_config').select('id');
+
+      const prodExists = !prodErr || prodErr.code !== '42P01';
+      const ordExists = !ordErr || ordErr.code !== '42P01';
+      const cmsExists = !cmsErr || cmsErr.code !== '42P01';
+
+      if (!prodExists || !ordExists || !cmsExists) {
         setTestResult({
           success: false,
-          message: 'No se ha configurado la URL o el Anon Key de Supabase.'
+          message: 'Conexión a Supabase exitosa, pero las tablas aún no han sido creadas. Ve a Supabase > SQL Editor, pega el script SQL de abajo y haz clic en RUN.',
+          details: {
+            productsTable: { exists: prodExists, count: prods?.length ?? 0, error: prodErr?.message },
+            ordersTable: { exists: ordExists, count: ords?.length ?? 0, error: ordErr?.message },
+            cmsTable: { exists: cmsExists, count: cms?.length ?? 0, error: cmsErr?.message }
+          }
         });
-        setIsTesting(false);
-        return;
-      }
-
-      // Try reading from products or cms_config
-      const { data, error } = await client.from('products').select('id').limit(1);
-
-      if (error) {
-        // Table might not exist yet
-        if (error.code === '42P01') {
-          setTestResult({
-            success: true,
-            message: 'Conexión a Supabase exitosa. Falta crear las tablas (ejecuta el script SQL abajo).'
-          });
-        } else {
-          setTestResult({
-            success: false,
-            message: `Error de Supabase: ${error.message} (${error.code || 'sin código'})`
-          });
-        }
+      } else if (prodErr || ordErr || cmsErr) {
+        const anyErr = prodErr || ordErr || cmsErr;
+        setTestResult({
+          success: false,
+          message: `Error al consultar tablas: ${anyErr?.message}. Asegúrate de ejecutar el script SQL con las políticas RLS.`,
+          details: {
+            productsTable: { exists: prodExists, count: prods?.length ?? 0, error: prodErr?.message },
+            ordersTable: { exists: ordExists, count: ords?.length ?? 0, error: ordErr?.message },
+            cmsTable: { exists: cmsExists, count: cms?.length ?? 0, error: cmsErr?.message }
+          }
+        });
       } else {
         setTestResult({
           success: true,
-          message: `¡Conexión y tablas verificadas exitosamente! (Registros detectados: ${data?.length ?? 0})`
+          message: '¡Conexión y tablas 100% verificadas en Supabase! La sincronización automática está activa.',
+          details: {
+            productsTable: { exists: true, count: prods?.length ?? 0 },
+            ordersTable: { exists: true, count: ords?.length ?? 0 },
+            cmsTable: { exists: true, count: cms?.length ?? 0 }
+          }
         });
       }
     } catch (err: any) {
@@ -94,7 +151,7 @@ export const SupabaseManagerTab: React.FC = () => {
     }
   };
 
-  // Push local catalog & CMS to Supabase
+  // Push local catalog, CMS & orders to Supabase
   const handleUploadAllToSupabase = async () => {
     const client = getSupabaseClient();
     if (!client) {
@@ -132,23 +189,60 @@ export const SupabaseManagerTab: React.FC = () => {
         brand_name: cmsConfig.brandName,
         tagline: cmsConfig.tagline,
         primary_color: cmsConfig.primaryColor,
-        secondary_color: cmsConfig.secondaryColor,
-        cream_color: cmsConfig.creamColor,
         dark_color: cmsConfig.darkColor,
+        light_color: cmsConfig.lightColor,
+        gold_color: cmsConfig.goldColor,
+        cream_color: cmsConfig.creamColor,
         logo_url: cmsConfig.logoUrl,
         hero_title: cmsConfig.heroTitle,
         hero_subtitle: cmsConfig.heroSubtitle,
+        hero_badge: cmsConfig.heroBadge,
+        hero_image_url: cmsConfig.heroImageUrl,
         announcement_bar: cmsConfig.announcementText,
         show_announcement: cmsConfig.showAnnouncement,
+        delivery_fee: cmsConfig.deliveryFee,
         free_delivery_threshold: cmsConfig.freeDeliveryThreshold,
+        points_per_dollar: cmsConfig.pointsPerDollar,
+        store_branches: cmsConfig.storeBranches,
         is_delivery_open: cmsConfig.isDeliveryOpen,
         updated_at: new Date().toISOString()
       };
       const { error: cmsErr } = await client.from('cms_config').upsert([cmsRow], { onConflict: 'id' });
       if (cmsErr) throw cmsErr;
 
-      addNotification('Sincronización Exitosa', `Se subieron ${products.length} productos y la configuración CMS a Supabase.`, 'system');
-      alert(`¡Éxito! Se han subido ${products.length} productos y la configuración del CMS a tu base de datos Supabase.`);
+      // 3. Upload orders if any exist
+      if (orders && orders.length > 0) {
+        const mappedOrders = orders.map((ord: any) => ({
+          id: ord.id,
+          user_id: ord.userId,
+          customer_name: ord.customerName,
+          customer_email: ord.customerEmail,
+          customer_phone: ord.customerPhone,
+          delivery_type: ord.deliveryType,
+          delivery_address: ord.deliveryAddress,
+          pickup_branch: ord.pickupBranch,
+          delivery_notes: ord.deliveryNotes,
+          payment_method: ord.paymentMethod,
+          card_last4: ord.cardLast4,
+          payment_status: ord.paymentStatus,
+          status: ord.status,
+          items: ord.items || [],
+          subtotal: ord.subtotal || 0,
+          discount: ord.discount || 0,
+          delivery_fee: ord.deliveryFee || 0,
+          tip: ord.tip || 0,
+          total: ord.total || 0,
+          points_earned: ord.pointsEarned || 0,
+          points_redeemed: ord.pointsRedeemed || 0,
+          timeline: ord.timeline || [],
+          created_at: ord.createdAt,
+          updated_at: new Date().toISOString()
+        }));
+        await client.from('orders').upsert(mappedOrders, { onConflict: 'id' });
+      }
+
+      addNotification('Sincronización Exitosa', `Se subieron ${products.length} productos, CMS y pedidos a Supabase.`, 'system');
+      alert(`¡Éxito! Se han enviado ${products.length} productos, la configuración del CMS y los pedidos a tu base de datos Supabase.`);
     } catch (err: any) {
       console.error(err);
       alert(`Error al sincronizar con Supabase: ${err.message || err}`);
@@ -199,15 +293,21 @@ export const SupabaseManagerTab: React.FC = () => {
           brandName: dbCms.brand_name || prev.brandName,
           tagline: dbCms.tagline || prev.tagline,
           primaryColor: dbCms.primary_color || prev.primaryColor,
-          secondaryColor: dbCms.secondary_color || prev.secondaryColor,
-          creamColor: dbCms.cream_color || prev.creamColor,
           darkColor: dbCms.dark_color || prev.darkColor,
+          lightColor: dbCms.light_color || prev.lightColor,
+          goldColor: dbCms.gold_color || prev.goldColor,
+          creamColor: dbCms.cream_color || prev.creamColor,
           logoUrl: dbCms.logo_url || prev.logoUrl,
           heroTitle: dbCms.hero_title || prev.heroTitle,
           heroSubtitle: dbCms.hero_subtitle || prev.heroSubtitle,
+          heroBadge: dbCms.hero_badge || prev.heroBadge,
+          heroImageUrl: dbCms.hero_image_url || prev.heroImageUrl,
           announcementText: dbCms.announcement_bar || prev.announcementText,
           showAnnouncement: dbCms.show_announcement ?? prev.showAnnouncement,
+          deliveryFee: Number(dbCms.delivery_fee || prev.deliveryFee),
           freeDeliveryThreshold: Number(dbCms.free_delivery_threshold || prev.freeDeliveryThreshold),
+          pointsPerDollar: Number(dbCms.points_per_dollar || prev.pointsPerDollar),
+          storeBranches: dbCms.store_branches || prev.storeBranches,
           isDeliveryOpen: dbCms.is_delivery_open ?? prev.isDeliveryOpen
         }));
       }
@@ -239,7 +339,7 @@ export const SupabaseManagerTab: React.FC = () => {
           pointsRedeemed: ord.points_redeemed || 0,
           createdAt: ord.created_at || new Date().toISOString(),
           estimatedTimeMinutes: 25,
-          timeline: [
+          timeline: ord.timeline || [
             { status: 'received', label: 'Pedido Confirmado', time: '10:00 AM', completed: true, description: 'Confirmado en base de datos.' }
           ]
         }));
@@ -283,6 +383,24 @@ export const SupabaseManagerTab: React.FC = () => {
 
           <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
             <button
+              onClick={() => setIsDownloadModalOpen(true)}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-extrabold text-xs transition-all shadow-md cursor-pointer"
+              title="Solución de pantalla en blanco para GitHub Pages y descargas listas"
+            >
+              <Rocket className="w-4 h-4 text-emerald-950" />
+              <span>Solución GitHub Pages</span>
+            </button>
+
+            <button
+              onClick={() => downloadProjectZip('proyecto-demo.zip')}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-white hover:bg-stone-100 text-stone-950 font-extrabold text-xs transition-all shadow-md cursor-pointer"
+              title="Descargar ZIP completo listo para subir a GitHub"
+            >
+              <Download className="w-4 h-4 text-emerald-800" />
+              <span>Descargar ZIP (.zip)</span>
+            </button>
+
+            <button
               onClick={handleCopySql}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-emerald-400 hover:bg-emerald-300 text-stone-950 font-extrabold text-xs transition-all shadow-md cursor-pointer"
             >
@@ -300,6 +418,24 @@ export const SupabaseManagerTab: React.FC = () => {
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>
+        </div>
+      </div>
+
+      {/* Educational info for where to see data in Supabase */}
+      <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5">
+        <div className="p-2 bg-amber-500/20 rounded-xl text-amber-800 shrink-0 mt-0.5">
+          <Database className="w-5 h-5" />
+        </div>
+        <div className="space-y-1 text-xs text-stone-700">
+          <h4 className="font-bold text-stone-900 text-sm">
+            💡 ¿Dónde ver los datos de tu tienda en el panel de Supabase?
+          </h4>
+          <p className="leading-relaxed">
+            Para ver los productos, pedidos y la configuración de tu tienda, en el panel lateral izquierdo de Supabase haz clic en <strong>Table Editor</strong> (el icono de tabla/cuadrícula 📋). Ahí verás las tablas: <code>products</code>, <code>orders</code> y <code>cms_config</code>.
+          </p>
+          <p className="leading-relaxed text-stone-500">
+            <em>Nota importante:</em> La sección <strong>Logs &gt; PgBouncer</strong> de tu captura solo muestra conexiones internas del servidor PostgreSQL, no los registros de la tienda. Los datos enviados por esta aplicación se guardan en las tablas mediante la API REST segura.
+          </p>
         </div>
       </div>
 
@@ -341,9 +477,42 @@ export const SupabaseManagerTab: React.FC = () => {
             ) : (
               <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             )}
-            <div>
-              <p className="font-bold">{testResult.success ? 'Conexión Correcta' : 'Error de Conexión'}</p>
-              <p className="mt-0.5">{testResult.message}</p>
+            <div className="space-y-2 flex-1">
+              <div>
+                <p className="font-bold">{testResult.success ? 'Conexión Correcta' : 'Diagnóstico de Conexión'}</p>
+                <p className="mt-0.5">{testResult.message}</p>
+              </div>
+
+              {testResult.details && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-black/10 text-[11px]">
+                  <div className={`p-2 rounded-lg border flex items-center justify-between ${
+                    testResult.details.productsTable.exists ? 'bg-white/80 border-emerald-300' : 'bg-red-100/60 border-red-300'
+                  }`}>
+                    <span className="font-mono font-bold">products</span>
+                    <span className="font-semibold">
+                      {testResult.details.productsTable.exists ? `✓ ${testResult.details.productsTable.count} filas` : '✕ Falta tabla'}
+                    </span>
+                  </div>
+
+                  <div className={`p-2 rounded-lg border flex items-center justify-between ${
+                    testResult.details.ordersTable.exists ? 'bg-white/80 border-emerald-300' : 'bg-red-100/60 border-red-300'
+                  }`}>
+                    <span className="font-mono font-bold">orders</span>
+                    <span className="font-semibold">
+                      {testResult.details.ordersTable.exists ? `✓ ${testResult.details.ordersTable.count} filas` : '✕ Falta tabla'}
+                    </span>
+                  </div>
+
+                  <div className={`p-2 rounded-lg border flex items-center justify-between ${
+                    testResult.details.cmsTable.exists ? 'bg-white/80 border-emerald-300' : 'bg-red-100/60 border-red-300'
+                  }`}>
+                    <span className="font-mono font-bold">cms_config</span>
+                    <span className="font-semibold">
+                      {testResult.details.cmsTable.exists ? `✓ ${testResult.details.cmsTable.count} filas` : '✕ Falta tabla'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -358,12 +527,20 @@ export const SupabaseManagerTab: React.FC = () => {
             <input
               type="text"
               value={urlInput}
-              onChange={e => setUrlInput(e.target.value)}
+              onChange={e => {
+                const val = e.target.value;
+                if (val.includes('/rest') || (val.length > 30 && val.endsWith('/'))) {
+                  setUrlInput(sanitizeSupabaseUrl(val));
+                } else {
+                  setUrlInput(val);
+                }
+              }}
+              onBlur={() => setUrlInput(sanitizeSupabaseUrl(urlInput))}
               placeholder="https://xyzabcdefg.supabase.co"
               className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-xs focus:ring-2 focus:ring-emerald-700 focus:outline-none font-mono"
             />
-            <span className="text-[10px] text-stone-400 block">
-              Encuéntralo en tu proyecto Supabase: Project Settings &gt; API &gt; Project URL.
+            <span className="text-[10px] text-stone-500 block">
+              Encuéntralo en Supabase: <strong>Project Settings &gt; API &gt; Project URL</strong>. Debe ser solo la URL base (ej: <code className="text-emerald-700 font-bold">https://xyz.supabase.co</code>, <strong>sin</strong> <code>/rest/v1/</code>).
             </span>
           </div>
 

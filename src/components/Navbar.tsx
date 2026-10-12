@@ -11,10 +11,13 @@ import {
   LayoutDashboard,
   Palette,
   Award,
-  Database
+  Database,
+  Download,
+  Rocket
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useStore } from '../context/StoreContext';
+import { downloadProjectZip } from '../utils/downloadProjectZip';
 
 export const Navbar: React.FC = () => {
   const {
@@ -34,7 +37,8 @@ export const Navbar: React.FC = () => {
     orders,
     switchUserRole,
     searchQuery,
-    setSearchQuery
+    setSearchQuery,
+    setIsDownloadModalOpen
   } = useStore();
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -169,223 +173,264 @@ export const Navbar: React.FC = () => {
               <Heart className="w-4 h-4" />
               <span>Favoritos</span>
             </button>
-            {/* Admin Menu with Dropdown */}
-            <div className="relative" ref={adminDropdownRef}>
-              <button
-                id="nav-admin-btn"
-                onClick={() => {
-                  setIsAdminDropdownOpen(!isAdminDropdownOpen);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 ${
-                  activeTab === 'admin'
-                    ? 'bg-[#1E3932] text-white shadow-xs'
-                    : 'text-stone-800 hover:text-stone-950 bg-stone-100/80 hover:bg-stone-200/80 border border-stone-200/70'
-                }`}
-                title="Menú de Administración (CMS, Productos, Pedidos y Métricas)"
-              >
-                <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>Menú Admin</span>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                    isAdminDropdownOpen ? 'rotate-180' : ''
+            {/* Admin Menu with Dropdown - Visible ONLY for Admin users */}
+            {user.role === 'admin' && (
+              <div className="relative" ref={adminDropdownRef}>
+                <button
+                  id="nav-admin-btn"
+                  onClick={() => {
+                    setIsAdminDropdownOpen(!isAdminDropdownOpen);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 ${
+                    activeTab === 'admin'
+                      ? 'bg-[#1E3932] text-white shadow-xs'
+                      : 'text-stone-800 hover:text-stone-950 bg-stone-100/80 hover:bg-stone-200/80 border border-stone-200/70'
                   }`}
-                />
-              </button>
+                  title="Menú de Administración (CMS, Productos, Pedidos y Métricas)"
+                >
+                  <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>Menú Admin</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      isAdminDropdownOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
 
-              <AnimatePresence>
-                {isAdminDropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                    transition={{ duration: 0.12 }}
-                    className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-stone-200 p-2 z-50"
-                  >
-                    <div className="px-3 py-2 border-b border-stone-100 flex items-center justify-between">
-                      <span className="font-extrabold text-[11px] uppercase tracking-wider text-stone-900">
-                        Menú de Administración
-                      </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                        Acceso Rápido
-                      </span>
-                    </div>
+                <AnimatePresence>
+                  {isAdminDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                      transition={{ duration: 0.12 }}
+                      className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-stone-200 p-2 z-50"
+                    >
+                      <div className="px-3 py-2 border-b border-stone-100 flex items-center justify-between">
+                        <span className="font-extrabold text-[11px] uppercase tracking-wider text-stone-900">
+                          Menú de Administración
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                          Acceso Rápido
+                        </span>
+                      </div>
 
-                    <div className="py-1 space-y-0.5">
-                      <button
-                        onClick={() => {
-                          setActiveTab('admin');
-                          setAdminTab('products');
-                          setIsAdminDropdownOpen(false);
-                        }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
-                          activeTab === 'admin' && adminTab === 'products' ? 'bg-amber-50 text-amber-950' : ''
-                        }`}
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-900 flex items-center justify-center shrink-0">
-                          <Coffee className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-xs text-stone-900">Administrador de Productos</div>
-                          <div className="text-[10px] text-stone-500 font-normal">Crear, editar, precios, ofertas y fotos</div>
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setActiveTab('admin');
-                          setAdminTab('cms');
-                          setIsAdminDropdownOpen(false);
-                        }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
-                          activeTab === 'admin' && adminTab === 'cms' ? 'bg-emerald-50 text-emerald-950' : ''
-                        }`}
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-900 flex items-center justify-center shrink-0">
-                          <Palette className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-xs text-stone-900">CMS de Marca & Contenido</div>
-                          <div className="text-[10px] text-stone-500 font-normal">Logo, banners, textos y delivery</div>
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setActiveTab('admin');
-                          setAdminTab('dashboard');
-                          setIsAdminDropdownOpen(false);
-                        }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
-                          activeTab === 'admin' && adminTab === 'dashboard' ? 'bg-blue-50 text-blue-950' : ''
-                        }`}
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-900 flex items-center justify-center shrink-0">
-                          <LayoutDashboard className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-xs text-stone-900">Dashboard & Reportes</div>
-                          <div className="text-[10px] text-stone-500 font-normal">Ventas, métricas y pedidos del día</div>
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setActiveTab('admin');
-                          setAdminTab('orders');
-                          setIsAdminDropdownOpen(false);
-                        }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
-                          activeTab === 'admin' && adminTab === 'orders' ? 'bg-purple-50 text-purple-950' : ''
-                        }`}
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-900 flex items-center justify-center shrink-0">
-                          <ShoppingBag className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-xs text-stone-900">Pedidos en Vivo</div>
-                          <div className="text-[10px] text-stone-500 font-normal">Despacho y estado de entregas</div>
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setActiveTab('admin');
-                          setAdminTab('rewards');
-                          setIsAdminDropdownOpen(false);
-                        }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
-                          activeTab === 'admin' && adminTab === 'rewards' ? 'bg-amber-50 text-amber-950' : ''
-                        }`}
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-900 flex items-center justify-center shrink-0">
-                          <Award className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-xs text-stone-900">CRUD Puntos & Recompensas</div>
-                          <div className="text-[10px] text-stone-500 font-normal">Catálogo de estrellas y canjes</div>
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setActiveTab('admin');
-                          setAdminTab('supabase');
-                          setIsAdminDropdownOpen(false);
-                        }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
-                          activeTab === 'admin' && adminTab === 'supabase' ? 'bg-emerald-50 text-emerald-950 font-bold' : ''
-                        }`}
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-                          <Database className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-xs text-stone-900 flex items-center gap-1.5">
-                            <span>Base de Datos & SQL</span>
-                            <span className="text-[9px] px-1.5 py-0.2 bg-emerald-600 text-white rounded-full font-bold">Supabase</span>
+                      <div className="py-1 space-y-0.5">
+                        <button
+                          onClick={() => {
+                            setIsDownloadModalOpen(true);
+                            setIsAdminDropdownOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left bg-emerald-700 hover:bg-emerald-600 text-white font-bold cursor-pointer transition-all shadow-xs mb-1"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-emerald-900 text-emerald-100 flex items-center justify-center shrink-0">
+                            <Rocket className="w-4 h-4 text-emerald-300" />
                           </div>
-                          <div className="text-[10px] text-stone-500 font-normal">Script SQL, sincronizar y conectar</div>
-                        </div>
-                      </button>
+                          <div>
+                            <div className="font-extrabold text-xs flex items-center gap-1.5">
+                              <span>Solución GitHub Pages & Fix</span>
+                              <span className="text-[9px] px-1.5 py-0.2 bg-emerald-500/40 text-emerald-100 rounded-full font-bold">Fix</span>
+                            </div>
+                            <div className="text-[10px] text-emerald-100/90 font-normal">Web compilada lista para subir</div>
+                          </div>
+                        </button>
 
-                      <button
-                        onClick={() => {
-                          setActiveTab('admin');
-                          setAdminTab('pentesting');
-                          setIsAdminDropdownOpen(false);
-                        }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
-                          activeTab === 'admin' && adminTab === 'pentesting' ? 'bg-stone-100 text-stone-950' : ''
-                        }`}
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-stone-200 text-stone-800 flex items-center justify-center shrink-0">
-                          <ShieldCheck className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-xs text-stone-900">Pentesting & DevSecOps</div>
-                          <div className="text-[10px] text-stone-500 font-normal">Auditoría OWASP y pruebas</div>
-                        </div>
-                      </button>
-                    </div>
+                        <button
+                          onClick={() => {
+                            downloadProjectZip('proyecto-demo.zip');
+                            setIsAdminDropdownOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer transition-all shadow-xs mb-1"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-emerald-800 text-emerald-100 flex items-center justify-center shrink-0">
+                            <Download className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-xs flex items-center gap-1.5">
+                              <span>Descargar Proyecto (.ZIP)</span>
+                              <span className="text-[9px] px-1.5 py-0.2 bg-white/20 text-white rounded-full font-bold">1-Clic</span>
+                            </div>
+                            <div className="text-[10px] text-emerald-100/90 font-normal">Descarga directa a tu PC</div>
+                          </div>
+                        </button>
 
-                    <div className="pt-2 border-t border-stone-100 px-2 flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('admin');
-                          setIsAdminDropdownOpen(false);
-                        }}
-                        className="text-[11px] font-bold text-emerald-800 hover:underline cursor-pointer"
-                      >
-                        Ver panel completo →
-                      </button>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        cmsConfig.isDeliveryOpen ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                      }`}>
-                        Delivery: {cmsConfig.isDeliveryOpen ? 'Abierto' : 'Cerrado'}
-                      </span>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                        <button
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminTab('products');
+                            setIsAdminDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
+                            activeTab === 'admin' && adminTab === 'products' ? 'bg-amber-50 text-amber-950' : ''
+                          }`}
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-900 flex items-center justify-center shrink-0">
+                            <Coffee className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-xs text-stone-900">Administrador de Productos</div>
+                            <div className="text-[10px] text-stone-500 font-normal">Crear, editar, precios, ofertas y fotos</div>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminTab('cms');
+                            setIsAdminDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
+                            activeTab === 'admin' && adminTab === 'cms' ? 'bg-emerald-50 text-emerald-950' : ''
+                          }`}
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-900 flex items-center justify-center shrink-0">
+                            <Palette className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-xs text-stone-900">CMS de Marca & Contenido</div>
+                            <div className="text-[10px] text-stone-500 font-normal">Logo, banners, textos y delivery</div>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminTab('dashboard');
+                            setIsAdminDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
+                            activeTab === 'admin' && adminTab === 'dashboard' ? 'bg-blue-50 text-blue-950' : ''
+                          }`}
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-900 flex items-center justify-center shrink-0">
+                            <LayoutDashboard className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-xs text-stone-900">Dashboard & Reportes</div>
+                            <div className="text-[10px] text-stone-500 font-normal">Ventas, métricas y pedidos del día</div>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminTab('orders');
+                            setIsAdminDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
+                            activeTab === 'admin' && adminTab === 'orders' ? 'bg-purple-50 text-purple-950' : ''
+                          }`}
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-900 flex items-center justify-center shrink-0">
+                            <ShoppingBag className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-xs text-stone-900">Pedidos en Vivo</div>
+                            <div className="text-[10px] text-stone-500 font-normal">Despacho y estado de entregas</div>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminTab('rewards');
+                            setIsAdminDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
+                            activeTab === 'admin' && adminTab === 'rewards' ? 'bg-amber-50 text-amber-950' : ''
+                          }`}
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-900 flex items-center justify-center shrink-0">
+                            <Award className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-xs text-stone-900">CRUD Puntos & Recompensas</div>
+                            <div className="text-[10px] text-stone-500 font-normal">Catálogo de estrellas y canjes</div>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminTab('supabase');
+                            setIsAdminDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
+                            activeTab === 'admin' && adminTab === 'supabase' ? 'bg-emerald-50 text-emerald-950 font-bold' : ''
+                          }`}
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                            <Database className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-xs text-stone-900 flex items-center gap-1.5">
+                              <span>Base de Datos & SQL</span>
+                              <span className="text-[9px] px-1.5 py-0.2 bg-emerald-600 text-white rounded-full font-bold">Supabase</span>
+                            </div>
+                            <div className="text-[10px] text-stone-500 font-normal">Script SQL, sincronizar y conectar</div>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminTab('pentesting');
+                            setIsAdminDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-stone-100 text-stone-800 font-semibold cursor-pointer transition-colors ${
+                            activeTab === 'admin' && adminTab === 'pentesting' ? 'bg-stone-100 text-stone-950' : ''
+                          }`}
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-stone-200 text-stone-800 flex items-center justify-center shrink-0">
+                            <ShieldCheck className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-xs text-stone-900">Pentesting & DevSecOps</div>
+                            <div className="text-[10px] text-stone-500 font-normal">Auditoría OWASP y pruebas</div>
+                          </div>
+                        </button>
+                      </div>
+
+                      <div className="pt-2 border-t border-stone-100 px-2 flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setIsAdminDropdownOpen(false);
+                          }}
+                          className="text-[11px] font-bold text-emerald-800 hover:underline cursor-pointer"
+                        >
+                          Ver panel completo →
+                        </button>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          cmsConfig.isDeliveryOpen ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          Delivery: {cmsConfig.isDeliveryOpen ? 'Abierto' : 'Cerrado'}
+                        </span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </nav>
 
           {/* Right Action Icons */}
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {/* Quick Demo Role Toggle */}
-            <button
-              id="role-switch-btn"
-              onClick={() => switchUserRole(user.role === 'admin' ? 'customer' : 'admin')}
-              title="Alternar entre vista de Cliente y Administrador"
-              className="hidden lg:flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full border border-stone-300 bg-stone-50 hover:bg-stone-100 text-stone-700 cursor-pointer transition-colors shrink-0"
-            >
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: user.role === 'admin' ? '#10B981' : '#F59E0B' }}
-              />
-              <span>{user.role === 'admin' ? 'Admin' : 'Cliente'}</span>
-            </button>
+            {/* Quick Demo Role Toggle - Only shown if logged in as Admin */}
+            {user.role === 'admin' && (
+              <button
+                id="role-switch-btn"
+                onClick={() => switchUserRole('customer')}
+                title="Modo Administrador activo. Clic para volver a vista de Cliente"
+                className="hidden lg:flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full border border-stone-300 bg-stone-50 hover:bg-stone-100 text-stone-700 cursor-pointer transition-colors shrink-0"
+              >
+                <span
+                  className="w-2 h-2 rounded-full bg-emerald-500"
+                />
+                <span>Modo Admin</span>
+              </button>
+            )}
 
             {/* Notification Bell */}
             <div className="relative shrink-0">
@@ -529,14 +574,16 @@ export const Navbar: React.FC = () => {
           >
             Favoritos
           </button>
-          <button
-            onClick={() => setActiveTab('admin')}
-            className={`text-xs font-semibold py-1.5 px-3 rounded-full cursor-pointer ${
-              activeTab === 'admin' ? 'bg-stone-900 text-white' : 'text-stone-600'
-            }`}
-          >
-            Admin
-          </button>
+          {user.role === 'admin' && (
+            <button
+              onClick={() => setActiveTab('admin')}
+              className={`text-xs font-semibold py-1.5 px-3 rounded-full cursor-pointer ${
+                activeTab === 'admin' ? 'bg-stone-900 text-white' : 'text-stone-600'
+              }`}
+            >
+              Admin
+            </button>
+          )}
         </div>
       </div>
     </header>

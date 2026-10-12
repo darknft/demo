@@ -398,7 +398,7 @@ export const INITIAL_REWARDS: RewardItem[] = [
   {
     id: 'rew-cafe-grano',
     name: 'Bolsa de Café en Grano (250g) o Vaso Tumbler',
-    description: 'Lleva el café Starbucks a tu hogar o adquiere un vaso reutilizable de colección.',
+    description: 'Lleva el café Bean & Co a tu hogar o adquiere un vaso reutilizable de colección.',
     starsRequired: 400,
     category: 'merchandise',
     imageUrl: 'https://images.unsplash.com/photo-1587734195503-904fca47e0e9?q=80&w=400&auto=format&fit=crop',
@@ -412,7 +412,11 @@ export const INITIAL_USER: User = {
   email: 'camila.rosales@example.com',
   role: 'customer',
   phone: '+52 55 4920 1184',
-  address: 'Av. Insurgentes Sur 1450, Piso 8, Del Valle, CDMX',
+  address: 'Av. Insurgentes Sur 1450, Del Valle, CDMX',
+  city: 'Ciudad de México',
+  birthDate: '1998-05-14',
+  age: 26,
+  gender: 'femenino',
   stars: 320,
   lifetimeStars: 780,
   tier: 'gold',
@@ -423,13 +427,18 @@ export const INITIAL_USER: User = {
 export const ADMIN_USER: User = {
   id: 'usr-admin-001',
   name: 'Master Barista & Administrador',
-  email: 'admin@starbucks-demo.com',
+  email: 'darkbts@protonmail.com',
   role: 'admin',
   phone: '+52 55 9900 3321',
-  address: 'Oficina Central de Operaciones Starbucks',
+  address: 'Oficina Central de Operaciones Bean & Co',
+  city: 'Ciudad de México',
+  birthDate: '1988-11-20',
+  age: 36,
+  gender: 'masculino',
   stars: 1250,
   lifetimeStars: 3400,
   tier: 'reserve',
   favoriteProductIds: [],
-  badges: INITIAL_BADGES
+  badges: INITIAL_BADGES,
+  password: 'Mastercoffe26@#$'
 };

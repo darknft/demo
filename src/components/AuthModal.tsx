@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Lock,
@@ -6,15 +6,19 @@ import {
   User as UserIcon,
   ShieldCheck,
   CheckCircle2,
+  AlertCircle,
   LogOut,
   MapPin,
   Phone,
   Sparkles,
   Coffee,
   Palette,
-  LayoutDashboard
+  Calendar,
+  Pencil,
+  Cake,
+  Check
 } from 'lucide-react';
-import { useStore } from '../context/StoreContext';
+import { useStore, calculateAge } from '../context/StoreContext';
 
 export const AuthModal: React.FC = () => {
   const {
@@ -24,22 +28,190 @@ export const AuthModal: React.FC = () => {
     loginUser,
     logoutUser,
     switchUserRole,
+    registerCustomer,
+    updateCustomerProfile,
     setActiveTab,
-    setAdminTab
+    setAdminTab,
+    cmsConfig
   } = useStore();
 
-  const [isRegister, setIsRegister] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const isGuest = !user || user.email === 'invitado@starbucks-demo.com';
+
+  // Toggle between register and login
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+
+  // Login form state
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+
+  // Register form state
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regGender, setRegGender] = useState('femenino');
+  const [regBirthDate, setRegBirthDate] = useState('');
+  const [regCity, setRegCity] = useState('');
+  const [regAddress, setRegAddress] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+
+  // Form error message
+  const [formError, setFormError] = useState('');
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
+
+  // Edit profile state (for logged-in customer)
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editBirthDate, setEditBirthDate] = useState('');
+  const [editGender, setEditGender] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState(false);
+
+  // Sync edit fields when opening edit mode
+  useEffect(() => {
+    if (user && !isGuest) {
+      setEditName(user.name || '');
+      setEditPhone(user.phone || '');
+      setEditBirthDate(user.birthDate || '');
+      setEditGender(user.gender || 'femenino');
+      setEditCity(user.city || '');
+      setEditAddress(user.address || '');
+    }
+  }, [user, isGuest, isEditingProfile]);
 
   if (!isAuthModalOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Real-time age calculations
+  const regCalculatedAge = regBirthDate ? calculateAge(regBirthDate) : 0;
+  const isRegUnderage = Boolean(regBirthDate && regCalculatedAge < 18);
+
+  const editCalculatedAge = editBirthDate ? calculateAge(editBirthDate) : 0;
+  const isEditUnderage = Boolean(editBirthDate && editCalculatedAge < 18);
+
+  // Format date helper
+  const formatBirthDateDisplay = (dateStr?: string) => {
+    if (!dateStr) return 'No especificada';
+    const parts = dateStr.split('-');
+    if (parts.length < 3) return dateStr;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const date = new Date(year, month, day);
+    return date.toLocaleDateString('es-ES', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
+  const formatGenderDisplay = (g?: string) => {
+    if (!g) return 'No especificado';
+    const map: Record<string, string> = {
+      femenino: 'Femenino',
+      masculino: 'Masculino',
+      no_binario: 'No binario',
+      otro: 'Otro',
+      prefiero_no_decir: 'Prefiero no decir'
+    };
+    return map[g.toLowerCase()] || g;
+  };
+
+  const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
-    loginUser(email, name || undefined);
+    setFormError('');
+    if (!loginEmail.trim() || !loginPassword.trim()) {
+      setFormError('Por favor completa tu correo y contraseña.');
+      return;
+    }
+    const result = loginUser(loginEmail.trim(), undefined, loginPassword.trim());
+    if (result && !result.success) {
+      setFormError(result.error || 'Credenciales inválidas. Verifica tu correo y contraseña.');
+    }
+  };
+
+  const handleRegisterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError('');
+
+    if (!regName.trim()) {
+      setFormError('El nombre y apellido son obligatorios.');
+      return;
+    }
+    if (!regEmail.trim()) {
+      setFormError('El correo electrónico es obligatorio.');
+      return;
+    }
+    if (!regPhone.trim()) {
+      setFormError('El número de celular es obligatorio.');
+      return;
+    }
+    if (!regBirthDate) {
+      setFormError('La fecha de nacimiento es obligatoria.');
+      return;
+    }
+    if (regCalculatedAge < 18) {
+      setFormError(
+        `Solo mayores de edad (18 años o más) pueden registrarse en la tienda. Tu edad calculada es de ${regCalculatedAge} años.`
+      );
+      return;
+    }
+    if (!regCity.trim()) {
+      setFormError('La ciudad es obligatoria.');
+      return;
+    }
+    if (!regPassword.trim()) {
+      setFormError('Por favor ingresa una contraseña.');
+      return;
+    }
+
+    const result = registerCustomer({
+      name: regName,
+      email: regEmail,
+      phone: regPhone,
+      gender: regGender,
+      birthDate: regBirthDate,
+      city: regCity,
+      address: regAddress,
+      password: regPassword
+    });
+
+    if (!result.success) {
+      setFormError(result.error || 'Error al registrar cliente.');
+    }
+  };
+
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditError('');
+    setEditSuccess(false);
+
+    if (editBirthDate && editCalculatedAge < 18) {
+      setEditError(
+        `Debes ser mayor de edad (18 años o más). Edad calculada: ${editCalculatedAge} años.`
+      );
+      return;
+    }
+
+    const result = updateCustomerProfile({
+      name: editName.trim(),
+      phone: editPhone.trim(),
+      birthDate: editBirthDate,
+      gender: editGender,
+      city: editCity.trim(),
+      address: editAddress.trim()
+    });
+
+    if (result.success) {
+      setEditSuccess(true);
+      setTimeout(() => {
+        setIsEditingProfile(false);
+        setEditSuccess(false);
+      }, 1000);
+    } else {
+      setEditError(result.error || 'Error al actualizar perfil.');
+    }
   };
 
   const handleOAuth = (provider: 'google' | 'apple') => {
@@ -47,27 +219,46 @@ export const AuthModal: React.FC = () => {
     setTimeout(() => {
       setOauthLoading(null);
       if (provider === 'google') {
-        loginUser('usuario.google@gmail.com', 'Usuario Google');
+        loginUser('cliente.google@gmail.com', 'Cliente Google');
       } else {
-        loginUser('usuario.apple@icloud.com', 'Usuario Apple');
+        loginUser('cliente.apple@icloud.com', 'Cliente Apple');
       }
-    }, 800);
+    }, 700);
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-stone-200">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+      <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden border border-stone-200 animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="p-5 border-b border-stone-200 bg-stone-50 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[#006241] text-white flex items-center justify-center font-bold">
-              <ShieldCheck className="w-4 h-4" />
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-full text-white flex items-center justify-center font-bold shadow-xs shrink-0"
+              style={{ backgroundColor: cmsConfig.primaryColor }}
+            >
+              {isGuest ? (
+                <ShieldCheck className="w-5 h-5" />
+              ) : (
+                <span className="text-base font-extrabold">{user.name.charAt(0)}</span>
+              )}
             </div>
             <div>
-              <h3 className="font-bold text-base text-stone-900 leading-tight">
-                {user.email !== 'invitado@starbucks-demo.com' ? 'Mi Perfil de Usuario' : 'Autenticación Segura'}
+              <h3 className="font-extrabold text-base sm:text-lg text-stone-900 leading-tight">
+                {!isGuest
+                  ? user.role === 'admin'
+                    ? 'Panel de Administrador'
+                    : 'Mi Perfil de Cliente'
+                  : authMode === 'register'
+                  ? 'Registro de Cliente'
+                  : 'Iniciar Sesión'}
               </h3>
-              <p className="text-[11px] text-stone-500">OAuth 2.0 & Protección RBAC</p>
+              <p className="text-xs text-stone-500">
+                {!isGuest
+                  ? user.role === 'admin'
+                    ? 'Permisos de Administración y CMS'
+                    : 'Cuenta verificada Bean & Co Rewards'
+                  : 'Acceso seguro con cifrado TLS 1.3'}
+              </p>
             </div>
           </div>
 
@@ -79,108 +270,343 @@ export const AuthModal: React.FC = () => {
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-5">
-          {user.email !== 'invitado@starbucks-demo.com' ? (
-            /* Logged in state info */
-            <div className="space-y-4">
-              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-[#006241] text-white flex items-center justify-center font-bold text-lg">
-                  {user.name.charAt(0)}
+        {/* Modal Body */}
+        <div className="p-5 sm:p-6 max-h-[82vh] overflow-y-auto space-y-5">
+          {!isGuest ? (
+            /* ======================================================== */
+            /* LOGGED-IN VIEW (CUSTOMER PROFILE OR ADMIN VIEW)         */
+            /* ======================================================== */
+            <div className="space-y-5">
+              {/* Profile Card Header */}
+              <div className="p-4 bg-emerald-50/80 rounded-2xl border border-emerald-200/90 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="w-12 h-12 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-xs shrink-0"
+                    style={{ backgroundColor: cmsConfig.primaryColor }}
+                  >
+                    {user.name.charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="font-extrabold text-stone-900 text-base truncate">
+                      {user.name}
+                    </h4>
+                    <p className="text-xs text-stone-600 truncate">{user.email}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-700 text-white uppercase tracking-wider">
+                        {user.role === 'admin' ? 'Administrador' : 'Cliente Registrado'}
+                      </span>
+                      {user.role === 'customer' && user.age && user.age >= 18 && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                          18+ Verificado
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-stone-900 text-base">{user.name}</h4>
-                  <p className="text-xs text-stone-600">{user.email}</p>
-                  <span className="inline-block mt-1 text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-700 text-white">
-                    Rol: {user.role === 'admin' ? 'Administrador' : 'Cliente Registrado'}
+
+                {user.role === 'customer' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingProfile(!isEditingProfile);
+                      setEditError('');
+                      setEditSuccess(false);
+                    }}
+                    className="shrink-0 p-2 rounded-xl border border-stone-300 bg-white hover:bg-stone-50 text-stone-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-stone-600" />
+                    <span className="hidden sm:inline">
+                      {isEditingProfile ? 'Cancelar' : 'Editar Datos'}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {/* Edit Profile Form (Only for Customer) */}
+              {isEditingProfile && user.role === 'customer' ? (
+                <form
+                  onSubmit={handleSaveProfile}
+                  className="p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-3.5"
+                >
+                  <div className="flex items-center justify-between border-b border-stone-200 pb-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-stone-800">
+                      Editar Información de Cliente
+                    </span>
+                    <span className="text-[11px] text-stone-500">Solo mayores de edad</span>
+                  </div>
+
+                  {editError && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800 font-medium">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                      <span>{editError}</span>
+                    </div>
+                  )}
+
+                  {editSuccess && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center gap-2 text-xs text-emerald-800 font-bold">
+                      <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                      <span>¡Datos actualizados correctamente!</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        Nombre y Apellido *
+                      </label>
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        required
+                        className="w-full text-xs p-2.5 bg-white border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        Celular *
+                      </label>
+                      <input
+                        type="tel"
+                        value={editPhone}
+                        onChange={e => setEditPhone(e.target.value)}
+                        placeholder="+52 55 1234 5678"
+                        required
+                        className="w-full text-xs p-2.5 bg-white border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        Género *
+                      </label>
+                      <select
+                        value={editGender}
+                        onChange={e => setEditGender(e.target.value)}
+                        required
+                        className="w-full text-xs p-2.5 bg-white border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                      >
+                        <option value="femenino">Femenino</option>
+                        <option value="masculino">Masculino</option>
+                        <option value="no_binario">No binario</option>
+                        <option value="otro">Otro</option>
+                        <option value="prefiero_no_decir">Prefiero no decir</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        Fecha de Cumpleaños / Nacimiento *
+                      </label>
+                      <input
+                        type="date"
+                        value={editBirthDate}
+                        onChange={e => setEditBirthDate(e.target.value)}
+                        required
+                        className="w-full text-xs p-2.5 bg-white border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Age feedback during edit */}
+                  {editBirthDate && (
+                    <div
+                      className={`p-2.5 rounded-xl border text-xs flex items-center gap-2 font-medium ${
+                        isEditUnderage
+                          ? 'bg-rose-50 border-rose-300 text-rose-800'
+                          : 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                      }`}
+                    >
+                      {isEditUnderage ? (
+                        <>
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>
+                            ⚠️ Tienes {editCalculatedAge} años. Debes tener 18 o más años.
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>
+                            Edad calculada: <strong>{editCalculatedAge} años</strong> (Mayor de edad verificado ✓)
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        Ciudad *
+                      </label>
+                      <input
+                        type="text"
+                        value={editCity}
+                        onChange={e => setEditCity(e.target.value)}
+                        placeholder="Ej. Ciudad de México"
+                        required
+                        className="w-full text-xs p-2.5 bg-white border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        Dirección de Entrega
+                      </label>
+                      <input
+                        type="text"
+                        value={editAddress}
+                        onChange={e => setEditAddress(e.target.value)}
+                        placeholder="Ej. Calle 123, Colonia..."
+                        className="w-full text-xs p-2.5 bg-white border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="submit"
+                      disabled={isEditUnderage}
+                      className={`flex-1 py-2.5 rounded-xl text-white font-bold text-xs cursor-pointer transition-all shadow-xs ${
+                        isEditUnderage
+                          ? 'bg-stone-400 cursor-not-allowed opacity-60'
+                          : 'bg-[#006241] hover:bg-[#1E3932]'
+                      }`}
+                    >
+                      Guardar Cambios del Perfil
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingProfile(false)}
+                      className="px-4 py-2.5 rounded-xl border border-stone-300 text-stone-700 text-xs font-semibold hover:bg-stone-100 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+
+              {/* Customer Profile Details Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Rewards Balance */}
+                <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-stone-500 mb-1">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span>Estrellas Rewards</span>
+                  </div>
+                  <div className="text-lg font-extrabold text-stone-900">
+                    {user.stars} <span className="text-xs font-semibold text-amber-600">★</span>
+                  </div>
+                  <span className="text-[11px] text-stone-500 capitalize">
+                    Nivel: {user.tier} Member
+                  </span>
+                </div>
+
+                {/* Celular */}
+                <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-stone-500 mb-1">
+                    <Phone className="w-4 h-4 text-emerald-700" />
+                    <span>Celular</span>
+                  </div>
+                  <div className="text-sm font-bold text-stone-900">
+                    {user.phone || 'No registrado'}
+                  </div>
+                  <span className="text-[11px] text-stone-500">Notificaciones por SMS</span>
+                </div>
+
+                {/* Fecha de Cumpleaños */}
+                <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-stone-500 mb-1">
+                    <Cake className="w-4 h-4 text-rose-500" />
+                    <span>Cumpleaños</span>
+                  </div>
+                  <div className="text-sm font-bold text-stone-900">
+                    {formatBirthDateDisplay(user.birthDate)}
+                  </div>
+                  <span className="text-[11px] text-stone-500">Bebida gratis en tu día</span>
+                </div>
+
+                {/* Edad & Género */}
+                <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-stone-500 mb-1">
+                    <UserIcon className="w-4 h-4 text-blue-600" />
+                    <span>Edad y Género</span>
+                  </div>
+                  <div className="text-sm font-bold text-stone-900 flex items-center gap-2">
+                    <span>{user.age ? `${user.age} años` : 'Mayor de edad'}</span>
+                    <span className="text-stone-300">•</span>
+                    <span>{formatGenderDisplay(user.gender)}</span>
+                  </div>
+                  <span className="text-[11px] text-emerald-700 font-semibold">
+                    ✓ Mayor de edad verificado
+                  </span>
+                </div>
+
+                {/* Ciudad y Dirección */}
+                <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200 sm:col-span-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-stone-500 mb-1">
+                    <MapPin className="w-4 h-4 text-stone-500" />
+                    <span>Ciudad y Dirección</span>
+                  </div>
+                  <div className="text-xs font-bold text-stone-900">
+                    {user.city || 'Ciudad de México'}{' '}
+                    {user.address && user.address !== user.city ? `— ${user.address}` : ''}
+                  </div>
+                  <span className="text-[11px] text-stone-500">
+                    Para envíos y sucursal de preferencia
                   </span>
                 </div>
               </div>
 
-              <div className="space-y-2 text-xs text-stone-600 bg-stone-50 p-4 rounded-2xl border border-stone-200">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  <span className="font-bold text-stone-900">{user.stars} Estrellas Rewards</span>
-                  <span className="text-stone-400">({user.tier.toUpperCase()})</span>
-                </div>
-                {user.address && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-stone-400" />
-                    <span>{user.address}</span>
+              {/* Admin Tools ONLY visible if user is admin */}
+              {user.role === 'admin' && (
+                <div className="p-4 bg-stone-100 rounded-2xl border border-stone-300 space-y-3">
+                  <span className="block text-[11px] font-extrabold uppercase text-stone-800 tracking-wider">
+                    Acceso de Administración:
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('admin');
+                        setAdminTab('products');
+                        setIsAuthModalOpen(false);
+                      }}
+                      className="p-2.5 rounded-xl bg-white border border-stone-300 hover:border-amber-400 hover:bg-amber-50 text-stone-800 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all shadow-2xs"
+                    >
+                      <Coffee className="w-4 h-4 text-amber-700 shrink-0" />
+                      <span>Productos</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('admin');
+                        setAdminTab('cms');
+                        setIsAuthModalOpen(false);
+                      }}
+                      className="p-2.5 rounded-xl bg-white border border-stone-300 hover:border-emerald-400 hover:bg-emerald-50 text-stone-800 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all shadow-2xs"
+                    >
+                      <Palette className="w-4 h-4 text-emerald-700 shrink-0" />
+                      <span>CMS & Marca</span>
+                    </button>
                   </div>
-                )}
-                {user.phone && (
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-stone-400" />
-                    <span>{user.phone}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Demo quick switch roles */}
-              <div className="pt-2 border-t border-stone-100">
-                <p className="text-[11px] text-stone-500 mb-2 font-medium">
-                  Alternar rol rápidamente para pruebas:
-                </p>
-                <div className="grid grid-cols-2 gap-2">
                   <button
+                    type="button"
                     onClick={() => switchUserRole('customer')}
-                    className={`py-2 rounded-xl text-xs font-bold border cursor-pointer ${
-                      user.role === 'customer'
-                        ? 'bg-emerald-100 border-emerald-400 text-emerald-950 font-extrabold'
-                        : 'bg-white border-stone-200 text-stone-700'
-                    }`}
+                    className="w-full py-2 rounded-xl text-xs font-bold bg-white hover:bg-stone-50 border border-stone-300 text-stone-700 cursor-pointer"
                   >
-                    Perfil Cliente
-                  </button>
-                  <button
-                    onClick={() => switchUserRole('admin')}
-                    className={`py-2 rounded-xl text-xs font-bold border cursor-pointer ${
-                      user.role === 'admin'
-                        ? 'bg-stone-900 text-white font-extrabold border-stone-900'
-                        : 'bg-white border-stone-200 text-stone-700'
-                    }`}
-                  >
-                    Perfil Admin
+                    Cambiar a Vista de Cliente
                   </button>
                 </div>
+              )}
 
-                {user.role === 'admin' && (
-                  <div className="mt-3 p-3 bg-stone-100 rounded-2xl border border-stone-200">
-                    <span className="block text-[11px] font-extrabold uppercase text-stone-700 tracking-wider mb-2">
-                      Acceso Rápido de Administración:
-                    </span>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('admin');
-                          setAdminTab('products');
-                          setIsAuthModalOpen(false);
-                        }}
-                        className="p-2.5 rounded-xl bg-white border border-stone-200 hover:border-amber-400 hover:bg-amber-50 text-stone-800 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all shadow-xs"
-                      >
-                        <Coffee className="w-4 h-4 text-amber-700 shrink-0" />
-                        <span>Productos</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('admin');
-                          setAdminTab('cms');
-                          setIsAuthModalOpen(false);
-                        }}
-                        className="p-2.5 rounded-xl bg-white border border-stone-200 hover:border-emerald-400 hover:bg-emerald-50 text-stone-800 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all shadow-xs"
-                      >
-                        <Palette className="w-4 h-4 text-emerald-700 shrink-0" />
-                        <span>CMS & Marca</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
+              {/* Logout Button */}
               <button
+                type="button"
                 onClick={logoutUser}
                 className="w-full py-2.5 rounded-full text-rose-700 hover:bg-rose-50 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer border border-rose-200 transition-colors"
               >
@@ -189,9 +615,51 @@ export const AuthModal: React.FC = () => {
               </button>
             </div>
           ) : (
-            /* Login Form */
+            /* ======================================================== */
+            /* GUEST VIEW: TABS FOR REGISTRATION OR LOGIN               */
+            /* ======================================================== */
             <div className="space-y-4">
-              {/* OAuth 2.0 Buttons */}
+              {/* Tab Selector */}
+              <div className="flex p-1 bg-stone-100 rounded-2xl border border-stone-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('login');
+                    setFormError('');
+                  }}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all ${
+                    authMode === 'login'
+                      ? 'bg-white text-stone-900 shadow-xs'
+                      : 'text-stone-500 hover:text-stone-800'
+                  }`}
+                >
+                  Iniciar Sesión
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('register');
+                    setFormError('');
+                  }}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all ${
+                    authMode === 'register'
+                      ? 'bg-[#006241] text-white shadow-xs'
+                      : 'text-stone-500 hover:text-stone-800'
+                  }`}
+                >
+                  Registrarme (+50★)
+                </button>
+              </div>
+
+              {/* Error Banner */}
+              {formError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-800 font-medium">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
+              {/* OAuth Buttons */}
               <div className="space-y-2">
                 <button
                   type="button"
@@ -218,7 +686,9 @@ export const AuthModal: React.FC = () => {
                     />
                   </svg>
                   <span>
-                    {oauthLoading === 'google' ? 'Conectando con Google...' : 'Continuar con Google OAuth 2.0'}
+                    {oauthLoading === 'google'
+                      ? 'Conectando con Google...'
+                      : 'Continuar con Google'}
                   </span>
                 </button>
 
@@ -240,96 +710,254 @@ export const AuthModal: React.FC = () => {
               <div className="flex items-center my-3">
                 <div className="flex-1 border-t border-stone-200" />
                 <span className="px-3 text-[11px] text-stone-400 font-semibold uppercase">
-                  o con correo
+                  o con tus datos
                 </span>
                 <div className="flex-1 border-t border-stone-200" />
               </div>
 
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="space-y-3">
-                {isRegister && (
+              {authMode === 'register' ? (
+                /* ======================================================== */
+                /* COMPLETE CUSTOMER REGISTRATION FORM                      */
+                /* ======================================================== */
+                <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
+                  <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>
+                      ¡Regístrate gratis hoy y recibe <strong>50 estrellas de bienvenida</strong>!
+                    </span>
+                  </div>
+
+                  {/* Nombre y Apellido * */}
                   <div>
                     <label className="block text-[11px] font-bold text-stone-700 mb-1">
-                      Nombre Completo
+                      Nombre y Apellido *
                     </label>
                     <input
                       type="text"
-                      value={name}
-                      onChange={e => setName(e.target.value)}
-                      placeholder="Ej. Sofía Hernández"
-                      className="w-full text-xs p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-emerald-700 focus:outline-none"
+                      value={regName}
+                      onChange={e => setRegName(e.target.value)}
+                      placeholder="Ej. Sofía Hernández Gómez"
+                      required
+                      className="w-full text-xs p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
                     />
                   </div>
-                )}
 
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-700 mb-1">
-                    Correo Electrónico
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="tucorreo@ejemplo.com"
-                    required
-                    className="w-full text-xs p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-emerald-700 focus:outline-none"
-                  />
-                </div>
+                  {/* Correo Electrónico * y Celular * */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        Correo Electrónico *
+                      </label>
+                      <input
+                        type="email"
+                        value={regEmail}
+                        onChange={e => setRegEmail(e.target.value)}
+                        placeholder="tu@correo.com"
+                        required
+                        className="w-full text-xs p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-700 mb-1">
-                    Contraseña
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    className="w-full text-xs p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-emerald-700 focus:outline-none"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        Celular *
+                      </label>
+                      <input
+                        type="tel"
+                        value={regPhone}
+                        onChange={e => setRegPhone(e.target.value)}
+                        placeholder="+52 55 1234 5678"
+                        required
+                        className="w-full text-xs p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                      />
+                    </div>
+                  </div>
 
-                <button
-                  type="submit"
-                  className="w-full py-2.5 rounded-full text-white font-bold text-xs bg-[#006241] hover:bg-[#1E3932] shadow-xs cursor-pointer transition-colors"
-                >
-                  {isRegister ? 'Crear Cuenta y Ganar 50★' : 'Iniciar Sesión'}
-                </button>
-              </form>
+                  {/* Género * y Fecha de Nacimiento * */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        Género *
+                      </label>
+                      <select
+                        value={regGender}
+                        onChange={e => setRegGender(e.target.value)}
+                        required
+                        className="w-full text-xs p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none bg-white"
+                      >
+                        <option value="femenino">Femenino</option>
+                        <option value="masculino">Masculino</option>
+                        <option value="no_binario">No binario</option>
+                        <option value="otro">Otro</option>
+                        <option value="prefiero_no_decir">Prefiero no decir</option>
+                      </select>
+                    </div>
 
-              <div className="text-center pt-2">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        Fecha de Nacimiento *
+                      </label>
+                      <input
+                        type="date"
+                        value={regBirthDate}
+                        onChange={e => setRegBirthDate(e.target.value)}
+                        required
+                        className="w-full text-xs p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Dynamic Age Verification Feedback */}
+                  {regBirthDate && (
+                    <div
+                      className={`p-2.5 rounded-xl border text-xs flex items-center gap-2 font-medium ${
+                        isRegUnderage
+                          ? 'bg-rose-50 border-rose-300 text-rose-900'
+                          : 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                      }`}
+                    >
+                      {isRegUnderage ? (
+                        <>
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>
+                            ⚠️ Tu edad calculada es de <strong>{regCalculatedAge} años</strong>.
+                            Solo mayores de edad (18+ años) pueden registrarse en la tienda.
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>
+                            Edad calculada: <strong>{regCalculatedAge} años</strong> — Mayor de
+                            edad verificado para registrarte ✓
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Ciudad * y Dirección */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        Ciudad *
+                      </label>
+                      <input
+                        type="text"
+                        value={regCity}
+                        onChange={e => setRegCity(e.target.value)}
+                        placeholder="Ej. Ciudad de México"
+                        required
+                        className="w-full text-xs p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        Dirección (opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={regAddress}
+                        onChange={e => setRegAddress(e.target.value)}
+                        placeholder="Calle, número, colonia..."
+                        className="w-full text-xs p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Contraseña * */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      Contraseña *
+                    </label>
+                    <input
+                      type="password"
+                      value={regPassword}
+                      onChange={e => setRegPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      className="w-full text-xs p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={isRegUnderage}
+                    className={`w-full py-3 rounded-full text-white font-bold text-xs shadow-xs transition-all ${
+                      isRegUnderage
+                        ? 'bg-stone-400 cursor-not-allowed opacity-60'
+                        : 'bg-[#006241] hover:bg-[#1E3932] cursor-pointer'
+                    }`}
+                  >
+                    {isRegUnderage
+                      ? 'Registro bloqueado (Solo mayores de edad)'
+                      : 'Crear Cuenta de Cliente (Ganar 50★)'}
+                  </button>
+                </form>
+              ) : (
+                /* ======================================================== */
+                /* LOGIN FORM                                               */
+                /* ======================================================== */
+                <form onSubmit={handleLoginSubmit} className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      Correo Electrónico
+                    </label>
+                    <input
+                      type="email"
+                      value={loginEmail}
+                      onChange={e => setLoginEmail(e.target.value)}
+                      placeholder="tucorreo@ejemplo.com"
+                      required
+                      className="w-full text-xs p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      Contraseña
+                    </label>
+                    <input
+                      type="password"
+                      value={loginPassword}
+                      onChange={e => setLoginPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      className="w-full text-xs p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-[#006241] focus:outline-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 rounded-full text-white font-bold text-xs bg-[#006241] hover:bg-[#1E3932] shadow-xs cursor-pointer transition-colors"
+                  >
+                    Iniciar Sesión
+                  </button>
+
+                  <div className="text-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode('register')}
+                      className="text-xs text-stone-600 hover:text-stone-900 underline font-semibold cursor-pointer"
+                    >
+                      ¿No tienes cuenta aún? Regístrate gratis aquí
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Demo Customer Access (No Master shortcut for end user) */}
+              <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-[11px] text-stone-600 flex items-center justify-between">
+                <span className="font-semibold text-stone-700">Demostración Cliente:</span>
                 <button
                   type="button"
-                  onClick={() => setIsRegister(!isRegister)}
-                  className="text-xs text-stone-600 hover:text-stone-900 underline font-semibold cursor-pointer"
+                  onClick={() => loginUser('camila.rosales@example.com', 'Camila Rosales')}
+                  className="text-[#006241] hover:text-[#1E3932] underline font-bold cursor-pointer"
                 >
-                  {isRegister
-                    ? '¿Ya tienes cuenta? Inicia sesión aquí'
-                    : '¿No tienes cuenta aún? Regístrate gratis'}
+                  Probar como Cliente Camila
                 </button>
-              </div>
-
-              {/* Demo auto-fill convenience */}
-              <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-[11px] text-stone-600 space-y-1">
-                <span className="font-bold text-stone-800 block">Acceso Rápido Demo:</span>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => loginUser('camila.rosales@example.com', 'Camila Rosales')}
-                    className="text-emerald-800 underline font-semibold cursor-pointer"
-                  >
-                    Cliente Demo
-                  </button>
-                  <span>•</span>
-                  <button
-                    type="button"
-                    onClick={() => loginUser('admin@starbucks-demo.com', 'Administrador')}
-                    className="text-emerald-800 underline font-semibold cursor-pointer"
-                  >
-                    Admin Barista
-                  </button>
-                </div>
               </div>
             </div>
           )}

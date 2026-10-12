@@ -30,11 +30,15 @@ import {
   Thermometer,
   Layers,
   Flame,
-  Database
+  Database,
+  Download,
+  Copy,
+  Rocket
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { Product, OrderStatus, RewardItem, CMSConfig, ProductVariant, ModifierGroup } from '../../types';
 import { SupabaseManagerTab } from './SupabaseManagerTab';
+import { downloadProjectZip } from '../../utils/downloadProjectZip';
 
 export const AdminDashboard: React.FC = () => {
   const {
@@ -61,7 +65,8 @@ export const AdminDashboard: React.FC = () => {
     resetCMSToStarbucks,
     resetCMSToArtisan,
     addNotification,
-    viewOrderDetails
+    viewOrderDetails,
+    setIsDownloadModalOpen
   } = useStore();
 
   // Product modal state
@@ -167,6 +172,13 @@ export const AdminDashboard: React.FC = () => {
     { id: 'ut-6', name: 'Transición de Estados de Orden en Tiempo Real', passed: true, duration: 5, msg: 'received -> preparing -> in_transit -> delivered actualiza timestamps ✓' }
   ]);
   const [isRunningTests, setIsRunningTests] = useState(false);
+  const [copiedProductId, setCopiedProductId] = useState<string | null>(null);
+
+  const handleCopyId = (id: string) => {
+    navigator.clipboard.writeText(id);
+    setCopiedProductId(id);
+    setTimeout(() => setCopiedProductId(null), 2500);
+  };
 
   // Calculations for dashboard
   const totalSalesRevenue = orders.reduce((acc, o) => acc + (o.paymentStatus === 'paid' ? o.total : 0), 0);
@@ -215,6 +227,26 @@ export const AdminDashboard: React.FC = () => {
     }, 1200);
   };
 
+  if (user.role !== 'admin') {
+    return (
+      <div className="max-w-xl mx-auto my-16 p-8 bg-white rounded-3xl border border-stone-200 text-center shadow-lg">
+        <div className="w-16 h-16 bg-rose-100 text-rose-700 rounded-full flex items-center justify-center mx-auto mb-4 font-bold shadow-xs">
+          <ShieldCheck className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-extrabold text-stone-900 mb-2">Acceso Restringido a Administradores</h2>
+        <p className="text-xs sm:text-sm text-stone-600 mb-6 leading-relaxed">
+          Este panel es exclusivo para administradores autorizados. Estás navegando como cliente.
+        </p>
+        <button
+          onClick={() => setActiveTab('menu')}
+          className="px-6 py-3 bg-[#006241] text-white font-bold rounded-full text-xs sm:text-sm hover:bg-[#1E3932] cursor-pointer transition-colors shadow-xs"
+        >
+          Volver a la Tienda y Menú
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       {/* Admin Top Navigation */}
@@ -262,6 +294,26 @@ export const AdminDashboard: React.FC = () => {
             <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200">
               Admin: {user.name}
             </span>
+
+            <button
+              type="button"
+              onClick={() => setIsDownloadModalOpen(true)}
+              className="text-xs font-bold px-3.5 py-1.5 rounded-full bg-emerald-700 hover:bg-emerald-600 text-white transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+              title="Solución de pantalla en blanco para GitHub Pages y descargas listas"
+            >
+              <Rocket className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Solución GitHub Pages & Fix</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => downloadProjectZip('proyecto-demo.zip')}
+              className="text-xs font-bold px-3.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+              title="Descargar archivo .zip con todo el código fuente para subir a GitHub"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Descargar ZIP del Proyecto</span>
+            </button>
 
             <button
               type="button"
@@ -574,6 +626,26 @@ export const AdminDashboard: React.FC = () => {
                             <span className="text-[11px] text-stone-400 line-clamp-1 max-w-xs">
                               {prod.shortDescription}
                             </span>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <button
+                                type="button"
+                                onClick={() => handleCopyId(prod.id)}
+                                className="inline-flex items-center gap-1 font-mono text-[10px] text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 px-1.5 py-0.5 rounded cursor-pointer transition-colors border border-stone-200/70"
+                                title="Clic para copiar ID del producto"
+                              >
+                                {copiedProductId === prod.id ? (
+                                  <>
+                                    <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                    <span className="text-emerald-700 font-bold">¡Copiado!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>ID: <strong className="font-mono text-stone-800">{prod.id}</strong></span>
+                                    <Copy className="w-2.5 h-2.5 text-stone-400" />
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           </div>
                         </td>
                         <td className="p-4 uppercase font-semibold text-[11px] text-emerald-900">
@@ -709,6 +781,35 @@ export const AdminDashboard: React.FC = () => {
 
                 {/* Modal Form */}
                 <form onSubmit={handleSaveProduct} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
+                  {/* Product ID Indicator */}
+                  {productForm.id && (
+                    <div className="p-3 bg-stone-50 border border-stone-200 rounded-2xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-stone-500 font-semibold">ID del Producto (Sistema):</span>
+                        <code className="font-mono font-bold text-stone-900 bg-white px-2.5 py-1 rounded-lg border border-stone-200 text-xs">
+                          {productForm.id}
+                        </code>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyId(productForm.id!)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-[11px] bg-white hover:bg-stone-100 text-stone-700 border border-stone-200 shadow-2xs transition-colors cursor-pointer"
+                      >
+                        {copiedProductId === productForm.id ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="text-emerald-700">¡Copiado!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5 text-stone-500" />
+                            <span>Copiar ID</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Basic Info */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="sm:col-span-2">
