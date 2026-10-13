@@ -20,6 +20,11 @@ Deno.serve(async (req) => {
         city: c.city,
         country: c.country,
         registrationDate: isoDate(c.registration_date),
+        gender: c.gender,
+        // En el esquema de Data Cloud "age" es texto
+        age: c.age === null || c.age === undefined ? null : String(c.age),
+        // Fecha simple yyyy-MM-dd
+        birthday: c.birthday ? String(c.birthday).slice(0, 10) : null,
       }),
     });
     console.log("sync-customers OK", result);

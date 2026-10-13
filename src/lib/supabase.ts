@@ -175,8 +175,9 @@ CREATE TABLE IF NOT EXISTS cms_config (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. Tabla de Clientes (Customers)
-CREATE TABLE IF NOT EXISTS customers (
+-- 4. Tabla de Usuarios registrados de la tienda (store_users)
+-- (la tabla customers es de la integración con Data Cloud; no la uses aquí)
+CREATE TABLE IF NOT EXISTS store_users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
@@ -208,7 +209,7 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS timeline JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cms_config ENABLE ROW LEVEL SECURITY;
-ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE store_users ENABLE ROW LEVEL SECURITY;
 
 -- 6. Eliminar políticas anteriores para que el script se pueda re-ejecutar sin errores
 DROP POLICY IF EXISTS "Permitir lectura publica de productos" ON products;
@@ -220,8 +221,8 @@ DROP POLICY IF EXISTS "Permitir escritura de pedidos" ON orders;
 DROP POLICY IF EXISTS "Permitir lectura publica de cms" ON cms_config;
 DROP POLICY IF EXISTS "Permitir actualizacion de cms" ON cms_config;
 DROP POLICY IF EXISTS "Permitir escritura de cms" ON cms_config;
-DROP POLICY IF EXISTS "Permitir lectura publica de clientes" ON customers;
-DROP POLICY IF EXISTS "Permitir escritura de clientes" ON customers;
+DROP POLICY IF EXISTS "Permitir lectura publica de usuarios" ON store_users;
+DROP POLICY IF EXISTS "Permitir escritura de usuarios" ON store_users;
 
 -- 7. Políticas públicas permisivas para la aplicación web
 CREATE POLICY "Permitir lectura publica de productos" ON products FOR SELECT USING (true);
@@ -233,8 +234,8 @@ CREATE POLICY "Permitir escritura de pedidos" ON orders FOR ALL USING (true) WIT
 CREATE POLICY "Permitir lectura publica de cms" ON cms_config FOR SELECT USING (true);
 CREATE POLICY "Permitir escritura de cms" ON cms_config FOR ALL USING (true) WITH CHECK (true);
 
-CREATE POLICY "Permitir lectura publica de clientes" ON customers FOR SELECT USING (true);
-CREATE POLICY "Permitir escritura de clientes" ON customers FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Permitir lectura publica de usuarios" ON store_users FOR SELECT USING (true);
+CREATE POLICY "Permitir escritura de usuarios" ON store_users FOR ALL USING (true) WITH CHECK (true);
 
 -- 8. Habilitar publicación en tiempo real (segura)
 DO $$

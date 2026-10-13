@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StoreProvider, useStore } from './context/StoreContext';
 import { Navbar } from './components/Navbar';
 import { HeroBanner } from './components/HeroBanner';
@@ -20,8 +20,32 @@ import { NotificationToast } from './components/NotificationToast';
 import { ProjectDownloadModal } from './components/ProjectDownloadModal';
 import { Footer } from './components/Footer';
 
+// SDK web de Salesforce Data Cloud (el script se carga en index.html)
+declare global {
+  interface Window {
+    SalesforceInteractions: any;
+  }
+}
+
 const MainLayout: React.FC = () => {
   const { activeTab, user } = useStore();
+
+  // Inicializa el SDK web de Data Cloud una sola vez
+  useEffect(() => {
+    if (window.SalesforceInteractions) {
+      window.SalesforceInteractions.init({
+        cookieDomain: 'tienda.pamelamilian.com',
+      })
+        .then(() => {
+          console.log('Data Cloud Web SDK inicializado correctamente.');
+        })
+        .catch((error: any) => {
+          console.error('Error al inicializar el Data Cloud Web SDK:', error);
+        });
+    } else {
+      console.warn('El script del Data Cloud Web SDK no se ha cargado. Revisa tu index.html');
+    }
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F9F9F7] text-stone-900 font-sans selection:bg-[#006241] selection:text-white">

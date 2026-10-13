@@ -42,6 +42,17 @@ Deno.serve(async (req) => {
         fulfillmentType: p.fulfillment_type,
         isRewardRedemption: p.is_reward_redemption ?? false,
         pointsRedeemed: p.points_redeemed ?? 0,
+        firstName: p.first_name,
+        lastName: p.last_name,
+        unitPrice: p.unit_price === null || p.unit_price === undefined ? null : Number(p.unit_price),
+        quantity: p.quantity === null || p.quantity === undefined ? null : Number(p.quantity),
+        orderId: p.order_id,
+        lastModifiedDate: isoDate(p.last_modified_date),
+        createdDate: isoDate(p.created_date ?? p.purchase_date),
+        purchaseStatus: p.purchase_status,
+        currencyCode: p.currency_code ?? "USD",
+        email: p.email,
+        purchaseChannel: p.purchase_channel ?? "Web",
       }),
     });
     console.log("sync-purchases OK", result);

@@ -549,7 +549,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       const supabase = getSupabaseClient();
       if (!supabase) return;
-      await supabase.from('customers').upsert({
+      await supabase.from('store_users').upsert({
         id: cust.id,
         name: cust.name,
         email: cust.email,
